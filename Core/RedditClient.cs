@@ -2,6 +2,7 @@
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.IO;
 using System.Linq;
 using System.Net;
 using System.Net.Http;
@@ -9,9 +10,11 @@ using System.Net.Http.Headers;
 using System.Reflection;
 using System.Text;
 using System.Text.Json;
+using System.Text.Json.Serialization;
 using System.Threading;
 using System.Threading.Tasks;
-
+using System.Text.RegularExpressions;
+using Newtonsoft.Json;
 namespace RedditQuoteBot.Core
 {
     /// <summary>
@@ -57,6 +60,8 @@ namespace RedditQuoteBot.Core
         /// The quotes that might be posted as comments.
         /// </summary>
         public IEnumerable<string> Quotes { get; }
+        
+        public string JSONResponses { get; }
 
         /// <summary>
         /// The reddit user names that will be ignored and not replied to.
@@ -123,13 +128,15 @@ namespace RedditQuoteBot.Core
             IEnumerable<string> subreddits,
             IEnumerable<string> triggerPhrases,
             IEnumerable<string> quotes,
+            string jsonresponses,
             IEnumerable<string>? ignoredUserNames = null,
             string? applicationName = null,
             string? applicationVersion = null,
             TimeSpan? ratelimit = null,
             TimeSpan? maxCommentAge = null,
             int commentLimit = 3,
-            TimeSpan? rateComment = null)
+            TimeSpan? rateComment = null
+            )
         {
             if (string.IsNullOrEmpty(appClientId))
                 throw new ArgumentException("The app client id cannot be null or empty.", nameof(appClientId));
@@ -161,6 +168,8 @@ namespace RedditQuoteBot.Core
             if (!quotes.Any())
                 throw new ArgumentException("One quote must be defined at least.", nameof(quotes));
 
+            if (jsonresponses == null)
+                throw new ArgumentNullException("JSON must be filled out");
             AppClientId = appClientId;
             AppClientSecret = appClientSecret;
             BotUserName = botUserName;
@@ -168,6 +177,7 @@ namespace RedditQuoteBot.Core
             Subreddits = subreddits;
             TriggerPhrases = triggerPhrases;
             Quotes = quotes;
+            JSONResponses = jsonresponses;
             IgnoredUserNames = ignoredUserNames ?? new List<string>();
 
             ApplicationName = (!string.IsNullOrEmpty(applicationName) ? applicationName : GetType().Assembly.GetName().Name)!;
@@ -205,7 +215,7 @@ namespace RedditQuoteBot.Core
                     {
                         foreach (var comment in await GetCommentsAsync(subreddit, cancellationToken))
                         {
-                            await PostReplyAsync(comment, GetQuote(out int quoteId), quoteId, cancellationToken);
+                            await PostReplyAsync(comment, GetQuote(out int quoteId, comment), quoteId, cancellationToken);
                         }
                     }
                 }
@@ -257,7 +267,7 @@ namespace RedditQuoteBot.Core
                 }
 
                 var responseContent = await response.Content.ReadAsStreamAsync();
-                result = await JsonSerializer.DeserializeAsync<ListingResponse>(responseContent, null, cancellationToken);
+                result = await System.Text.Json.JsonSerializer.DeserializeAsync<ListingResponse>(responseContent, null, cancellationToken);
 
                 if (result == null)
                     throw new InvalidOperationException("Failed to receive listing response.");
@@ -325,7 +335,7 @@ namespace RedditQuoteBot.Core
             {
                 var response = await _httpClient.PostAsync("https://www.reddit.com/api/v1/access_token", content, cancellationToken);
                 string responseContent = await response.Content.ReadAsStringAsync();
-                AccessTokenResponse = JsonSerializer.Deserialize<AccessTokenResponse>(responseContent);
+                AccessTokenResponse = System.Text.Json.JsonSerializer.Deserialize<AccessTokenResponse>(responseContent);
 
                 if (AccessTokenResponse?.Token == null)
                     throw new InvalidOperationException("Failed to receive access token.");
@@ -371,7 +381,7 @@ namespace RedditQuoteBot.Core
                 }
 
                 var responseContent = await response.Content.ReadAsStreamAsync();
-                result = await JsonSerializer.DeserializeAsync<ListingResponse>(responseContent, null, cancellationToken);
+                result = await System.Text.Json.JsonSerializer.DeserializeAsync<ListingResponse>(responseContent, null, cancellationToken);
 
                 if (result == null)
                     throw new InvalidOperationException("Failed to receive listing response.");
@@ -444,6 +454,69 @@ namespace RedditQuoteBot.Core
             quoteId = candidateId;
 
             return Quotes.ElementAt(quoteId);
+        }
+
+        private string GetQuote(out int quoteId, CommentData comment)
+        {
+            if (comment.Body == null)
+                throw new ArgumentNullException("comment is null");
+            string commentToReply;
+            commentToReply =
+                "Hi NancyDrewbot on the case! I don't believe in acronyms, I believe in looking for the translation!\n\n";
+            int candidateId = 0;
+            int maxRetryCount = Quotes.Count() * _randomRetryMultiplier;
+
+            for (int i = 0; i < maxRetryCount; i++)
+            {
+                candidateId = _random.Next(Quotes.Count());
+
+                if (ReplyHistory.All(h => h.QuoteId != candidateId || h.CreatedUtc < DateTime.UtcNow.Subtract(_sameQuoteTimeBuffer)))
+                    break;
+            }
+
+            //Scan the comment for matching acronyms
+            string pattern = @"\s[A-Z]{3}\s";
+            Regex rg = new Regex(pattern);
+            MatchCollection matchedAcronyms = rg.Matches(comment.Body);
+            commentToReply += AddComments(matchedAcronyms);
+            
+            pattern = @"\s[A-Z]{4}\s";
+            rg = new Regex(pattern);
+            matchedAcronyms = rg.Matches(comment.Body);
+            //For each acronym add a line translating it
+            commentToReply += AddComments(matchedAcronyms);
+            
+            //Console.WriteLine(commentToReply);
+            //return the comment that you want to post
+            quoteId = 1;
+            return(commentToReply);
+            throw new Exception("blorp");
+
+            quoteId = candidateId;
+
+            return Quotes.ElementAt(quoteId);
+        }
+
+        private string AddComments(MatchCollection matchedAcronyms)
+        {
+            var commentToReply = "";
+            var values = JsonConvert.DeserializeObject<Dictionary<string, string>>(JSONResponses);
+            foreach (Match match in matchedAcronyms)
+            {
+                if (values != null)
+                {
+                    string acronym = match.Value.Trim();
+                    string translated; 
+                    values.TryGetValue(acronym, out translated);
+                    if (translated == "" || translated==null)
+                        break;
+                    var commentToAdd = acronym + " means " + translated + "!\n\n";
+                    if(!commentToReply.Contains(commentToAdd))
+                        commentToReply += commentToAdd;
+                }
+            }
+
+            return commentToReply;
         }
 
         private string ApplyMacros(string quote, CommentData comment)
