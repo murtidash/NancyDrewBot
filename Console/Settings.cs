@@ -31,6 +31,7 @@ namespace RedditQuoteBot.Console
             IgnoredUserNames = GetFileContent(File.ReadAllText("IgnoredUserNames.txt"));
             TriggerPhrases = GetFileContent(File.ReadAllText("TriggerPhrases.txt"));
             Quotes = GetFileContent(File.ReadAllText("Quotes.txt"));
+            JSONResponses = File.ReadAllText("acronyms.json");
         }
 
         private static IList<string> GetFileContent(string value)
@@ -71,6 +72,8 @@ namespace RedditQuoteBot.Console
         public static readonly IList<string> TriggerPhrases;
 
         public static readonly IList<string> Quotes;
+
+        public static readonly string JSONResponses;
 
         public static class Twitch
         {

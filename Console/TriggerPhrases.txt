@@ -2,6 +2,36 @@
 ;each phrase is separated by a new line
 ;please note that the check is case insensitive
 
-Wowzers!
-RedditQuoteBot
-my vision is augmented
+SCK
+SFTD
+MHM
+TRT
+FIN
+SSH
+DOG
+CAR
+DDI
+SHA
+CUR
+CLK
+TRN
+DAN
+CRE
+ICE
+CRY
+VEN
+HAU
+RAN
+WAC
+TOT
+SAW
+CAP
+ASH
+TMB
+DED
+GTH
+SPY
+MED
+LIE
+SEA
+MID

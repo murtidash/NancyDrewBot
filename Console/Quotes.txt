@@ -7,3 +7,4 @@
 
 Oops, I forgot to replace the default quotes for my reddit bot. 😓
 I'm sorry {author}, I'm afraid I can't do that.{br}I also forgot to edit the Quotes.txt file for my reddit bot.
+sck

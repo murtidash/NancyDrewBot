@@ -21,13 +21,15 @@ namespace RedditQuoteBot.Console
                 Settings.Subreddits,
                 Settings.TriggerPhrases,
                 Settings.Quotes,
+                Settings.JSONResponses,
                 Settings.IgnoredUserNames,
                 Settings.ApplicationName,
                 Settings.ApplicationVersion,
                 Settings.Ratelimit,
                 Settings.MaxCommentAge,
                 Settings.CommentLimit,
-                Settings.RateComment);
+                Settings.RateComment
+                );
 
             var tokenSource = new CancellationTokenSource();
             var task = client.RunAsync(tokenSource.Token);
