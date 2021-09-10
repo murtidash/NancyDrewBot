@@ -475,16 +475,18 @@ namespace RedditQuoteBot.Core
             }
 
             //Scan the comment for matching acronyms
-            string pattern = @"\s[A-Z]{3}\s";
+            string pattern = @"[A-Z]{3}";
             Regex rg = new Regex(pattern);
             MatchCollection matchedAcronyms = rg.Matches(comment.Body);
-            commentToReply += AddComments(matchedAcronyms);
+            if(matchedAcronyms.Count>0)
+                commentToReply += AddComments(matchedAcronyms);
             
-            pattern = @"\s[A-Z]{4}\s";
+            pattern = @"[A-Z]{4}";
             rg = new Regex(pattern);
             matchedAcronyms = rg.Matches(comment.Body);
             //For each acronym add a line translating it
-            commentToReply += AddComments(matchedAcronyms);
+            if(matchedAcronyms.Count>0)
+                commentToReply += AddComments(matchedAcronyms);
             
             //Console.WriteLine(commentToReply);
             //return the comment that you want to post
@@ -539,33 +541,38 @@ namespace RedditQuoteBot.Core
 
             Console.Write($"Post reply to comment \"{comment.Id}\" on subreddit \"/r/{comment.Subreddit}\" ... ");
             HttpResponseMessage? response;
-
-            try
+            if (quote !=
+                "Hi NancyDrewbot on the case! I don't believe in acronyms, I believe in looking for the translation!\n\n"
+            )
             {
-                response = await _httpClient.PostAsync("https://oauth.reddit.com/api/comment", content, cancellationToken);
-
-                LogReply(comment, quoteId);
-
-                if (response.IsSuccessStatusCode)
+                try
                 {
-                    Console.WriteLine("succeeded.");
-                    Console.WriteLine($"Quote: \"{quote}\"");
+                    response = await _httpClient.PostAsync("https://oauth.reddit.com/api/comment", content,
+                        cancellationToken);
+
+                    LogReply(comment, quoteId);
+
+                    if (response.IsSuccessStatusCode)
+                    {
+                        Console.WriteLine("succeeded.");
+                        Console.WriteLine($"Quote: \"{quote}\"");
+                    }
+                    else
+                    {
+                        Console.WriteLine("failed.");
+                        Console.WriteLine(response.ReasonPhrase);
+                    }
                 }
-                else
+                catch (TaskCanceledException)
+                {
+                    // task cancellation can be ignored
+                }
+                catch (Exception ex)
                 {
                     Console.WriteLine("failed.");
-                    Console.WriteLine(response.ReasonPhrase);
+                    Console.WriteLine(ex);
+                    throw;
                 }
-            }
-            catch (TaskCanceledException)
-            {
-                // task cancellation can be ignored
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine("failed.");
-                Console.WriteLine(ex);
-                throw;
             }
         }
 
